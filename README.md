@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Campus Mess & Canteen Feedback & Pre-Order System
 
 A production-ready full-stack web application designed for college mess halls and canteens. It allows students to pre-order food, track preparations in real-time, pay online (mocked), and provide granular star reviews. Canteen admins can manage live incoming orders (via WebSockets), customize daily menus, audit payment logs, view advanced analytics, and check automatically compiled daily AI summaries.
@@ -92,3 +93,7 @@ Alternatively, you can register a new student or use this pre-seeded student:
 3. **Multi-category Feedback:** Grades orders across Taste, Hygiene, Service, Quantity, and Price. Includes AI sentiment tagging (Positive, Neutral, Negative) and enforces a 24-hour lock for updates.
 4. **Interactive Dashboard Charts:** Utilizes Recharts to map sales trends, ratings distributions, most ordered items, and peak hour spikes.
 5. **AI Daily Summary:** Aggregates analytics data and generates templates showing orders, revenue, complaints, and concrete actionable suggestions.
+=======
+# Campus-Canteen
+A web application that helps students view the daily canteen menu, provide ratings and feedback on food quality, and pre-order meals to reduce waiting time. The system also includes an admin dashboard for managing orders and analyzing the most liked and least liked food items. 
+>>>>>>> 80a7764dfead01c458e7c8b573b2de58cabda10d
