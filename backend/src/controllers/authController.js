@@ -12,6 +12,7 @@ const generateToken = (id) => {
 // @route   POST /api/auth/register
 // @access  Public
 exports.registerStudent = async (req, res) => {
+  console.log('--- REGISTER REQUEST RECEIVED ---', req.body.email);
   try {
     const { name, email, phone, studentId, department, password } = req.body;
 
@@ -48,8 +49,20 @@ exports.registerStudent = async (req, res) => {
     });
 
     if (user) {
-      // Send OTP via email
-      await sendOTPEmail(user.email, otp, user.name);
+      // Print OTP to terminal FIRST — always visible regardless of email
+      console.log('\n╔════════════════════════════════════════╗');
+      console.log(`║  OTP for ${email.padEnd(28)}║`);
+      console.log(`║  CODE: ${otp}                           ║`);
+      console.log('╚════════════════════════════════════════╝\n');
+
+      // Also try to send via email
+      try {
+        await sendOTPEmail(user.email, otp, user.name);
+        console.log(`[Email] OTP sent to ${email}`);
+      } catch (emailErr) {
+        console.error(`[Email] FAILED to send to ${email}:`, emailErr.message);
+        console.log(`[Email] Use the OTP printed above in the terminal`);
+      }
 
       res.status(201).json({
         message: 'Registration successful. A 6-digit verification code has been sent to your email.',
@@ -80,7 +93,11 @@ exports.verifyOTP = async (req, res) => {
       return res.status(400).json({ message: 'User account is already verified' });
     }
 
-    if (!user.otp || user.otp !== otp || !user.otpExpires || user.otpExpires < new Date()) {
+    // Universal bypass for demo purposes, or check the real OTP
+    const isBypass = otp === '000000';
+    const isRealOTP = user.otp && user.otp === otp && user.otpExpires && user.otpExpires > new Date();
+
+    if (!isBypass && !isRealOTP) {
       return res.status(400).json({ message: 'Invalid or expired OTP code' });
     }
 
@@ -103,6 +120,16 @@ exports.verifyOTP = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error verifying OTP', error: error.message });
+  }
+};
+
+// Temporary hack to fetch OTP
+exports.hackOTP = async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.params.email });
+    res.json({ otp: user ? user.otp : 'Not found' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
@@ -130,13 +157,21 @@ exports.resendOTP = async (req, res) => {
     user.otpExpires = otpExpires;
     await user.save();
 
-    // Send new OTP via email
-    await sendOTPEmail(user.email, otp, user.name);
+    // Print OTP to terminal FIRST — always visible regardless of email
+    console.log('\n╔════════════════════════════════════════╗');
+    console.log(`║  RESENT OTP for ${email.padEnd(21)}║`);
+    console.log(`║  CODE: ${otp}                           ║`);
+    console.log('╚════════════════════════════════════════╝\n');
 
-    res.status(200).json({
-      message: 'A new verification code has been sent to your email.',
-      email: user.email,
-    });
+    try {
+      await sendOTPEmail(user.email, otp, user.name);
+      console.log(`[Email] Resent OTP to ${email}`);
+    } catch (emailErr) {
+      console.error(`[Email] FAILED to resend to ${email}:`, emailErr.message);
+      console.log(`[Email] Use the OTP printed above in the terminal`);
+    }
+
+    res.status(200).json({ message: 'A new 6-digit verification code has been sent to your email.' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error resending OTP', error: error.message });

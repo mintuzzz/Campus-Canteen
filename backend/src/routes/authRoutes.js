@@ -11,6 +11,7 @@ const {
   resendOTP,
   getMe,
 } = require('../controllers/authController');
+
 const { protect } = require('../middleware/auth');
 
 router.post('/register', registerStudent);
