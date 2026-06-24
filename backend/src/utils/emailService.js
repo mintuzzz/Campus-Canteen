@@ -44,7 +44,7 @@ const sendOTPEmail = async (toEmail, otp, name = 'Student') => {
     const mailOptions = {
       from: `"Campus Canteen 🍽️" <${process.env.EMAIL_USER || 'noreply@campuscanteen.com'}>`,
       to: toEmail,
-      subject: `Your Campus Canteen Verification Code: ${otp}`,
+      subject: `Your Campus Canteen Verification Code: ${otp} (Ref: ${new Date().getTime().toString().slice(-4)})`,
       html: `
         <!DOCTYPE html>
         <html>

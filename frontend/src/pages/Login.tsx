@@ -34,15 +34,7 @@ export const Login: React.FC = () => {
       navigate('/');
     } catch (err: any) {
       console.error(err);
-      if (err.response?.status === 403 && err.response?.data?.needsVerification) {
-        setRegisteredEmail(err.response.data.email);
-        if (err.response.data.devOtp) {
-          setDevOtp(err.response.data.devOtp);
-        }
-        setShowOtpVerify(true);
-      } else {
-        setErrorMsg(err.response?.data?.message || 'Authentication failed. Please verify credentials.');
-      }
+      setErrorMsg(err.response?.data?.message || 'Authentication failed. Please verify credentials.');
     } finally {
       setLoading(false);
     }

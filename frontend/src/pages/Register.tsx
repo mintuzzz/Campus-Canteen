@@ -30,11 +30,8 @@ export const Register: React.FC = () => {
     setErrorMsg(null);
     try {
       const res = await axios.post(`${API_URL}/auth/register`, data);
-      setRegisteredEmail(data.email);
-      if (res.data.devOtp) {
-        setDevOtp(res.data.devOtp);
-      }
-      setShowOtpVerify(true);
+      login(res.data);
+      navigate('/');
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.response?.data?.message || 'Registration failed. Please try again.');

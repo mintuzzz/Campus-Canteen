@@ -30,10 +30,6 @@ exports.registerStudent = async (req, res) => {
       }
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
     // Create user (role is forced to student)
     const user = await User.create({
       name,
@@ -43,30 +39,19 @@ exports.registerStudent = async (req, res) => {
       department,
       password,
       role: 'student',
-      isVerified: false,
-      otp,
-      otpExpires,
+      isVerified: true,
     });
 
     if (user) {
-      // Print OTP to terminal FIRST — always visible regardless of email
-      console.log('\n╔════════════════════════════════════════╗');
-      console.log(`║  OTP for ${email.padEnd(28)}║`);
-      console.log(`║  CODE: ${otp}                           ║`);
-      console.log('╚════════════════════════════════════════╝\n');
-
-      // Also try to send via email
-      try {
-        await sendOTPEmail(user.email, otp, user.name);
-        console.log(`[Email] OTP sent to ${email}`);
-      } catch (emailErr) {
-        console.error(`[Email] FAILED to send to ${email}:`, emailErr.message);
-        console.log(`[Email] Use the OTP printed above in the terminal`);
-      }
-
       res.status(201).json({
-        message: 'Registration successful. A 6-digit verification code has been sent to your email.',
+        _id: user._id,
+        name: user.name,
         email: user.email,
+        phone: user.phone,
+        studentId: user.studentId,
+        department: user.department,
+        role: user.role,
+        token: generateToken(user._id),
       });
     } else {
       res.status(400).json({ message: 'Invalid student data' });
@@ -163,13 +148,13 @@ exports.resendOTP = async (req, res) => {
     console.log(`║  CODE: ${otp}                           ║`);
     console.log('╚════════════════════════════════════════╝\n');
 
-    try {
-      await sendOTPEmail(user.email, otp, user.name);
-      console.log(`[Email] Resent OTP to ${email}`);
-    } catch (emailErr) {
-      console.error(`[Email] FAILED to resend to ${email}:`, emailErr.message);
-      console.log(`[Email] Use the OTP printed above in the terminal`);
-    }
+    // Fire and forget email sending
+    sendOTPEmail(user.email, otp, user.name)
+      .then(() => console.log(`[Email] Resent OTP to ${email}`))
+      .catch((emailErr) => {
+        console.error(`[Email] FAILED to resend to ${email}:`, emailErr.message);
+        console.log(`[Email] Use the OTP printed above in the terminal`);
+      });
 
     res.status(200).json({ message: 'A new 6-digit verification code has been sent to your email.' });
   } catch (error) {
@@ -188,15 +173,6 @@ exports.loginStudent = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && user.role === 'student' && (await user.comparePassword(password))) {
-      // Prevent login if unverified
-      if (!user.isVerified) {
-        return res.status(403).json({
-          message: 'Account not verified. Please verify your OTP code.',
-          email: user.email,
-          needsVerification: true,
-        });
-      }
-
       res.json({
         _id: user._id,
         name: user.name,
