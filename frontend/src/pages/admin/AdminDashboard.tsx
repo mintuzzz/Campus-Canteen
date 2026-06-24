@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
 import { 
   ShoppingBag, Clock, Sparkles, MessageSquare, DollarSign, Star,
-  CheckCircle, ArrowUpRight, Shield, BellRing, RefreshCw
+  CheckCircle, ArrowUpRight, Shield, BellRing, RefreshCw, QrCode
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -277,6 +277,10 @@ export const AdminDashboard: React.FC = () => {
             <Link to="/admin/analytics" className="glass hover:border-red-500/30 p-5 rounded-2xl text-center flex flex-col items-center justify-center gap-2 transition-all">
               <Star size={20} className="text-red-500" />
               <span className="text-xs font-semibold text-slate-300">Analytics</span>
+            </Link>
+            <Link to="/admin/scan-qr" className="glass hover:border-emerald-500/30 p-5 rounded-2xl text-center flex flex-col items-center justify-center gap-2 transition-all border border-slate-800">
+              <QrCode size={20} className="text-emerald-500" />
+              <span className="text-xs font-semibold text-slate-300">Scan QR</span>
             </Link>
           </div>
         </div>

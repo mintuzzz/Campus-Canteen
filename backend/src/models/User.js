@@ -22,7 +22,8 @@ const UserSchema = new mongoose.Schema({
   studentId: {
     type: String,
     trim: true,
-    default: '',
+    unique: true,
+    sparse: true, // Allow admins/non-students to not have studentId or have it empty
   },
   department: {
     type: String,
@@ -35,8 +36,37 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['student', 'admin'],
+    enum: ['student', 'canteen', 'admin'],
     default: 'student',
+  },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  otp: {
+    type: String,
+    default: '',
+  },
+  otpExpires: {
+    type: Date,
+    default: null,
+  },
+  warningCount: {
+    type: Number,
+    default: 0,
+  },
+  noShowCount: {
+    type: Number,
+    default: 0,
+  },
+  penaltyStatus: {
+    type: String,
+    enum: ['None', 'Suspended'],
+    default: 'None',
+  },
+  suspensionUntil: {
+    type: Date,
+    default: null,
   },
   createdAt: {
     type: Date,

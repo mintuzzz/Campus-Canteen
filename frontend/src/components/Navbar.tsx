@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useSocket } from '../context/SocketContext';
-import { ShoppingCart, Bell, LogOut, Menu, X, Coffee, Shield, CheckCheck } from 'lucide-react';
+import { ShoppingCart, Bell, LogOut, Menu, X, Coffee, Shield, CheckCheck, ChefHat } from 'lucide-react';
 import axios from 'axios';
 
 interface NotificationItem {
@@ -97,7 +97,9 @@ export const Navbar: React.FC = () => {
     logout();
     setMobileMenuOpen(false);
     setNotifDropdownOpen(false);
-    navigate(user?.role === 'admin' ? '/admin/login' : '/login');
+    if (user?.role === 'admin') navigate('/admin/login');
+    else if (user?.role === 'canteen') navigate('/canteen/login');
+    else navigate('/login');
   };
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
@@ -108,7 +110,10 @@ export const Navbar: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <Link to={user?.role === 'admin' ? '/admin/dashboard' : '/'} className="flex items-center gap-2 group">
+            <Link to={
+              user?.role === 'admin' ? '/admin/dashboard' :
+              user?.role === 'canteen' ? '/canteen/dashboard' : '/'
+            } className="flex items-center gap-2 group">
               <div className="bg-gradient-to-tr from-amber-500 to-amber-600 p-2 rounded-xl text-slate-900 group-hover:scale-105 transition-transform duration-200 shadow-lg shadow-amber-500/20">
                 <Coffee size={20} className="stroke-[2.5]" />
               </div>
@@ -135,9 +140,18 @@ export const Navbar: React.FC = () => {
                 </Link>
                 <Link to="/admin/orders" className={`text-sm font-medium transition-colors ${location.pathname === '/admin/orders' ? 'text-amber-500' : 'text-slate-300 hover:text-white'}`}>Live Orders</Link>
                 <Link to="/admin/menu" className={`text-sm font-medium transition-colors ${location.pathname === '/admin/menu' ? 'text-amber-500' : 'text-slate-300 hover:text-white'}`}>Menu Management</Link>
-                <Link to="/admin/payments" className={`text-sm font-medium transition-colors ${location.pathname === '/admin/payments' ? 'text-amber-500' : 'text-slate-300 hover:text-white'}`}>Payments</Link>
                 <Link to="/admin/feedback" className={`text-sm font-medium transition-colors ${location.pathname === '/admin/feedback' ? 'text-amber-500' : 'text-slate-300 hover:text-white'}`}>Feedback Logs</Link>
                 <Link to="/admin/analytics" className={`text-sm font-medium transition-colors ${location.pathname === '/admin/analytics' ? 'text-amber-500' : 'text-slate-300 hover:text-white'}`}>Analytics</Link>
+                <Link to="/admin/scan-qr" className={`text-sm font-medium transition-colors ${location.pathname === '/admin/scan-qr' ? 'text-amber-500' : 'text-slate-300 hover:text-white'}`}>Scan QR</Link>
+              </>
+            )}
+
+            {user?.role === 'canteen' && (
+              <>
+                <Link to="/canteen/dashboard" className={`text-sm font-medium flex items-center gap-1.5 transition-colors ${location.pathname === '/canteen/dashboard' ? 'text-teal-400' : 'text-slate-300 hover:text-white'}`}>
+                  <ChefHat size={14} className="text-teal-400" /> Kitchen
+                </Link>
+                <Link to="/canteen/menu" className={`text-sm font-medium transition-colors ${location.pathname === '/canteen/menu' ? 'text-teal-400' : 'text-slate-300 hover:text-white'}`}>Menu</Link>
               </>
             )}
           </div>
@@ -287,9 +301,16 @@ export const Navbar: React.FC = () => {
                     <Link to="/admin/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-slate-300 hover:text-amber-500 font-bold">Admin Dashboard</Link>
                     <Link to="/admin/orders" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-slate-300 hover:text-amber-500">Live Orders</Link>
                     <Link to="/admin/menu" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-slate-300 hover:text-amber-500">Menu items</Link>
-                    <Link to="/admin/payments" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-slate-300 hover:text-amber-500">Payments</Link>
                     <Link to="/admin/feedback" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-slate-300 hover:text-amber-500">Feedback Logs</Link>
                     <Link to="/admin/analytics" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-slate-300 hover:text-amber-500">Analytics</Link>
+                    <Link to="/admin/scan-qr" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-slate-300 hover:text-amber-500">Scan QR</Link>
+                  </>
+                )}
+
+                {user.role === 'canteen' && (
+                  <>
+                    <Link to="/canteen/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-teal-400 font-bold flex items-center gap-1.5"><ChefHat size={14} /> Kitchen Dashboard</Link>
+                    <Link to="/canteen/menu" onClick={() => setMobileMenuOpen(false)} className="text-sm block px-3 py-2 text-slate-300 hover:text-teal-400">Menu Management</Link>
                   </>
                 )}
 

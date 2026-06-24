@@ -13,5 +13,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    // SPA history fallback — ensures all routes serve index.html on dev refresh
+    historyApiFallback: true,
   },
 });

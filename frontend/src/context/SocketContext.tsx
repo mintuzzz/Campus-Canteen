@@ -54,9 +54,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     newSocket.on('connect', () => {
       console.log('Connected to WebSocket server');
       
-      // Join corresponding room
+      // Join corresponding room(s)
       if (user.role === 'admin') {
         newSocket.emit('join', 'admin');
+      } else if (user.role === 'canteen') {
+        newSocket.emit('join', 'canteen');  // receive kitchen broadcasts
+        newSocket.emit('join', user._id);   // personal notifications
       } else {
         newSocket.emit('join', user._id);
       }

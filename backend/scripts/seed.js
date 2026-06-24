@@ -8,7 +8,6 @@ try {
   console.warn('Could not set custom DNS servers:', e);
 }
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 const path = require('path');
 
@@ -22,6 +21,7 @@ const Payment = require('../src/models/Payment');
 const Feedback = require('../src/models/Feedback');
 const DailySummary = require('../src/models/DailySummary');
 const Notification = require('../src/models/Notification');
+const Settings = require('../src/models/Settings');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/canteen';
 
@@ -39,20 +39,47 @@ const seedData = async () => {
     await Feedback.deleteMany({});
     await DailySummary.deleteMany({});
     await Notification.deleteMany({});
+    await Settings.deleteMany({});
 
-    console.log('Collections cleared. Seeding users...');
+    console.log('Collections cleared. Seeding default settings & users...');
 
-    // 1. Create Users
-    const salt = await bcrypt.genSalt(10);
-    const hashedAdminPassword = await bcrypt.hash('admin123', salt);
-    const hashedStudentPassword = await bcrypt.hash('student123', salt);
+    // Seed Settings
+    await Settings.create({
+      key: 'payment',
+      value: {
+        upiId: 'canteen@okicici',
+        payeeName: 'College Canteen',
+        notePrefix: 'CC',
+      }
+    });
 
+    // 1. Create Users (plain-text passwords — pre-save hook hashes them)
     const admin = await User.create({
       name: 'Canteen Supervisor',
       email: 'admin@canteen.com',
       phone: '9876543210',
-      password: 'admin123', // Schema pre-save hook will double-hash if password is plain. Wait, UserSchema HAS a pre-save hook that hashes the password! So we MUST pass plain text password, not hashed! Yes, mongoose save hook runs on User.create! Let's pass plain text.
+      password: 'admin123',
       role: 'admin',
+      isVerified: true,
+    });
+
+    // Canteen staff accounts
+    const canteenStaff1 = await User.create({
+      name: 'Priya Kitchen',
+      email: 'staff@canteen.com',
+      phone: '9112233445',
+      password: 'canteen123',
+      role: 'canteen',
+      isVerified: true,
+    });
+
+    const canteenStaff2 = await User.create({
+      name: 'Ravi Counter',
+      email: 'staff2@canteen.com',
+      phone: '9223344556',
+      password: 'canteen123',
+      role: 'canteen',
+      isVerified: true,
     });
 
     const student = await User.create({
@@ -61,8 +88,9 @@ const seedData = async () => {
       phone: '9988776655',
       studentId: 'STU2026049',
       department: 'Computer Science',
-      password: 'student123', // plain text (pre-save hook will hash it)
+      password: 'student123',
       role: 'student',
+      isVerified: true,
     });
 
     // Create a few other students for feedback variety
@@ -74,6 +102,7 @@ const seedData = async () => {
       department: 'Electronics',
       password: 'student123',
       role: 'student',
+      isVerified: true,
     });
 
     const student3 = await User.create({
@@ -84,9 +113,16 @@ const seedData = async () => {
       department: 'Mechanical',
       password: 'student123',
       role: 'student',
+      isVerified: true,
     });
 
-    console.log('Users seeded. Seeding menu items...');
+    console.log('✅ Users seeded:');
+    console.log('   Admin      → admin@canteen.com   / admin123');
+    console.log('   Canteen    → staff@canteen.com   / canteen123');
+    console.log('   Canteen 2  → staff2@canteen.com  / canteen123');
+    console.log('   Student    → student@canteen.com / student123');
+    console.log('   Student 2  → ananya@student.com  / student123');
+    console.log('   Student 3  → vikram@student.com  / student123');
 
     // 2. Create Food Items
     const foodItemsData = [

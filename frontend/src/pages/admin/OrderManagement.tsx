@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
-import { Search, SlidersHorizontal, RefreshCw, XCircle, Check, Loader, Gift, CheckCheck, Trash2 } from 'lucide-react';
+import { Search, RefreshCw, XCircle, Check, Loader, Gift, QrCode, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 
 interface OrderItem {
@@ -139,7 +140,7 @@ export const OrderManagement: React.FC = () => {
 
         {/* Status filters */}
         <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-1">
-          {['All', 'Pending', 'Accepted', 'Preparing', 'Ready', 'Completed', 'Cancelled'].map((status) => (
+          {['All', 'Pending Payment', 'Pending', 'Accepted', 'Preparing', 'Ready', 'Completed', 'Cancelled'].map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
@@ -216,7 +217,7 @@ export const OrderManagement: React.FC = () => {
 
                   {/* Operational controls */}
                   <div className="flex items-center gap-2 flex-wrap">
-                    {order.status === 'Pending' && (
+                    {(order.status === 'Pending' || order.status === 'Paid') && (
                       <>
                         <button
                           onClick={() => handleStatusUpdate(order._id, 'Accepted', order.tokenNumber)}
@@ -260,12 +261,18 @@ export const OrderManagement: React.FC = () => {
                     )}
 
                     {order.status === 'Ready' && (
-                      <button
-                        onClick={() => handleStatusUpdate(order._id, 'Completed', order.tokenNumber)}
+                      <Link
+                        to={`/admin/scan-qr?token=${order.tokenNumber}`}
                         className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-slate-950 font-bold px-4 py-2 rounded-xl text-[10px] border border-emerald-500/20 hover:border-transparent flex items-center gap-1.5 transition-all"
                       >
-                        <CheckCheck size={12} /> Complete PickUp
-                      </button>
+                        <QrCode size={12} /> Scan QR Pickup
+                      </Link>
+                    )}
+
+                    {order.status === 'Pending Payment' && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
+                        <AlertTriangle size={10} /> Awaiting Payment
+                      </span>
                     )}
 
                     {['Completed', 'Cancelled'].includes(order.status) && (

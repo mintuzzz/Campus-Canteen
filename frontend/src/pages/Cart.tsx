@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { Trash2, ShoppingBag, ArrowRight, ShieldAlert, CreditCard, Banknote } from 'lucide-react';
+import { Trash2, ShoppingBag, ArrowRight, Banknote, Smartphone } from 'lucide-react';
 import axios from 'axios';
 
 export const Cart: React.FC = () => {
@@ -12,7 +12,7 @@ export const Cart: React.FC = () => {
   const { addToast } = useSocket();
   const navigate = useNavigate();
 
-  const [paymentMethod, setPaymentMethod] = useState<'Cash On Pickup' | 'Razorpay UPI' | 'Card Payment'>('Cash On Pickup');
+  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Cash On Pickup'>('UPI');
   const [loading, setLoading] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -20,47 +20,13 @@ export const Cart: React.FC = () => {
   const handleCheckout = async () => {
     if (cartItems.length === 0) return;
 
-    if (paymentMethod !== 'Cash On Pickup') {
-      // Navigate to online mock checkout page, pass total and method in state
-      navigate('/checkout-payment', { 
-        state: { 
-          paymentMethod,
-          amount: cartTotal,
-          items: cartItems.map(i => ({ foodId: i.foodId, quantity: i.quantity, price: i.price, name: i.name, image: i.image }))
-        } 
-      });
-      return;
-    }
-
-    // Cash On Pickup -> Place order directly on the backend
-    setLoading(true);
-    try {
-      const orderPayload = {
-        items: cartItems.map((item) => ({
-          foodId: item.foodId,
-          quantity: item.quantity,
-        })),
-        paymentMethod: 'Cash On Pickup',
-      };
-
-      const res = await axios.post(`${API_URL}/orders`, orderPayload, {
-        headers: { Authorization: `Bearer ${user?.token}` },
-      });
-
-      addToast(
-        'Order Placed Successfully', 
-        `Token: ${res.data.order.tokenNumber}. Pay at counter upon pickup.`, 
-        'success'
-      );
-      
-      clearCart();
-      navigate(`/tracking/${res.data.order._id}`);
-    } catch (err: any) {
-      console.error(err);
-      addToast('Order Error', err.response?.data?.message || 'Failed to submit order.', 'warning');
-    } finally {
-      setLoading(false);
-    }
+    navigate('/checkout-payment', { 
+      state: { 
+        paymentMethod,
+        amount: cartTotal,
+        items: cartItems.map(i => ({ foodId: i.foodId, quantity: i.quantity, price: i.price, name: i.name, image: i.image }))
+      } 
+    });
   };
 
   if (cartItems.length === 0) {
@@ -156,71 +122,60 @@ export const Cart: React.FC = () => {
             <h2 className="text-xs font-extrabold text-slate-200 mb-4">Select Payment Method</h2>
             
             <div className="flex flex-col gap-3">
+              {/* PhonePe / UPI */}
               <label
                 className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  paymentMethod === 'Cash On Pickup'
-                    ? 'bg-amber-500/10 border-amber-500 text-slate-100'
+                  paymentMethod === 'UPI'
+                    ? 'bg-purple-500/10 border-purple-500 text-slate-100 shadow-lg shadow-purple-500/5'
                     : 'bg-slate-950/20 border-slate-800 text-slate-400 hover:border-slate-700'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Banknote size={16} className={paymentMethod === 'Cash On Pickup' ? 'text-amber-500' : ''} />
+                  <Smartphone size={16} className={paymentMethod === 'UPI' ? 'text-purple-400' : ''} />
                   <div className="text-left">
-                    <p className="text-xs font-semibold">Cash On Pickup</p>
-                    <p className="text-[9px] text-slate-500">Pay at the counter in cash</p>
+                    <p className="text-xs font-semibold">Pay via PhonePe / UPI</p>
+                    <p className="text-[9px] text-slate-500">GPay, Paytm, PhonePe, any UPI — auto-confirmed</p>
                   </div>
+                </div>
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  paymentMethod === 'UPI' ? 'border-purple-400' : 'border-slate-600'
+                }`}>
+                  {paymentMethod === 'UPI' && <div className="w-2 h-2 rounded-full bg-purple-400" />}
+                </div>
+                <input
+                  type="radio"
+                  name="payment"
+                  checked={paymentMethod === 'UPI'}
+                  onChange={() => setPaymentMethod('UPI')}
+                  className="hidden"
+                />
+              </label>
+
+              {/* Cash on Pickup */}
+              <label
+                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  paymentMethod === 'Cash On Pickup'
+                    ? 'bg-green-500/10 border-green-500 text-slate-100'
+                    : 'bg-slate-950/20 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Banknote size={16} className={paymentMethod === 'Cash On Pickup' ? 'text-green-400' : ''} />
+                  <div className="text-left">
+                    <p className="text-xs font-semibold">Cash on Pickup</p>
+                    <p className="text-[9px] text-slate-500">Pay cash when you collect your order</p>
+                  </div>
+                </div>
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  paymentMethod === 'Cash On Pickup' ? 'border-green-400' : 'border-slate-600'
+                }`}>
+                  {paymentMethod === 'Cash On Pickup' && <div className="w-2 h-2 rounded-full bg-green-400" />}
                 </div>
                 <input
                   type="radio"
                   name="payment"
                   checked={paymentMethod === 'Cash On Pickup'}
                   onChange={() => setPaymentMethod('Cash On Pickup')}
-                  className="hidden"
-                />
-              </label>
-
-              <label
-                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  paymentMethod === 'Razorpay UPI'
-                    ? 'bg-amber-500/10 border-amber-500 text-slate-100'
-                    : 'bg-slate-950/20 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <CreditCard size={16} className={paymentMethod === 'Razorpay UPI' ? 'text-amber-500' : ''} />
-                  <div className="text-left">
-                    <p className="text-xs font-semibold">Razorpay UPI</p>
-                    <p className="text-[9px] text-slate-500">GPay, PhonePe, Paytm, or UPI ID</p>
-                  </div>
-                </div>
-                <input
-                  type="radio"
-                  name="payment"
-                  checked={paymentMethod === 'Razorpay UPI'}
-                  onChange={() => setPaymentMethod('Razorpay UPI')}
-                  className="hidden"
-                />
-              </label>
-
-              <label
-                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${
-                  paymentMethod === 'Card Payment'
-                    ? 'bg-amber-500/10 border-amber-500 text-slate-100'
-                    : 'bg-slate-950/20 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <CreditCard size={16} className={paymentMethod === 'Card Payment' ? 'text-amber-500' : ''} />
-                  <div className="text-left">
-                    <p className="text-xs font-semibold">Credit/Debit Card</p>
-                    <p className="text-[9px] text-slate-500">Visa, Mastercard, RuPay cards</p>
-                  </div>
-                </div>
-                <input
-                  type="radio"
-                  name="payment"
-                  checked={paymentMethod === 'Card Payment'}
-                  onChange={() => setPaymentMethod('Card Payment')}
                   className="hidden"
                 />
               </label>
@@ -251,7 +206,7 @@ export const Cart: React.FC = () => {
               disabled={loading}
               className="w-full bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-slate-950 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 text-xs mt-6"
             >
-              {loading ? 'Submitting Order...' : paymentMethod === 'Cash On Pickup' ? 'Place Order' : 'Proceed to Payment'}
+              {loading ? 'Submitting Order...' : 'Proceed to Payment'}
               {!loading && <ArrowRight size={14} />}
             </button>
           </div>

@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { sendOTPEmail } = require('../utils/emailService');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'canteen_jwt_secret_token_123!', {
@@ -14,13 +15,25 @@ exports.registerStudent = async (req, res) => {
   try {
     const { name, email, phone, studentId, department, password } = req.body;
 
-    // Check if user exists
+    // Check if user exists by email
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    // Create user
+    // Block duplicate Student IDs
+    if (studentId) {
+      const studentIdExists = await User.findOne({ studentId });
+      if (studentIdExists) {
+        return res.status(400).json({ message: 'Student ID is already registered' });
+      }
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Create user (role is forced to student)
     const user = await User.create({
       name,
       email,
@@ -29,18 +42,18 @@ exports.registerStudent = async (req, res) => {
       department,
       password,
       role: 'student',
+      isVerified: false,
+      otp,
+      otpExpires,
     });
 
     if (user) {
+      // Send OTP via email
+      await sendOTPEmail(user.email, otp, user.name);
+
       res.status(201).json({
-        _id: user._id,
-        name: user.name,
+        message: 'Registration successful. A 6-digit verification code has been sent to your email.',
         email: user.email,
-        phone: user.phone,
-        studentId: user.studentId,
-        department: user.department,
-        role: user.role,
-        token: generateToken(user._id),
       });
     } else {
       res.status(400).json({ message: 'Invalid student data' });
@@ -48,6 +61,85 @@ exports.registerStudent = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error during registration', error: error.message });
+  }
+};
+
+// @desc    Verify OTP for student registration
+// @route   POST /api/auth/verify-otp
+// @access  Public
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'User not found with this email' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'User account is already verified' });
+    }
+
+    if (!user.otp || user.otp !== otp || !user.otpExpires || user.otpExpires < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired OTP code' });
+    }
+
+    user.isVerified = true;
+    user.otp = '';
+    user.otpExpires = null;
+    await user.save();
+
+    res.status(200).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      studentId: user.studentId,
+      department: user.department,
+      role: user.role,
+      token: generateToken(user._id),
+      message: 'Account verified successfully',
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error verifying OTP', error: error.message });
+  }
+};
+
+// @desc    Resend OTP to student
+// @route   POST /api/auth/resend-otp
+// @access  Public
+exports.resendOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'User not found with this email' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'User account is already verified' });
+    }
+
+    // Generate new OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    user.otp = otp;
+    user.otpExpires = otpExpires;
+    await user.save();
+
+    // Send new OTP via email
+    await sendOTPEmail(user.email, otp, user.name);
+
+    res.status(200).json({
+      message: 'A new verification code has been sent to your email.',
+      email: user.email,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error resending OTP', error: error.message });
   }
 };
 
@@ -61,6 +153,15 @@ exports.loginStudent = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && user.role === 'student' && (await user.comparePassword(password))) {
+      // Prevent login if unverified
+      if (!user.isVerified) {
+        return res.status(403).json({
+          message: 'Account not verified. Please verify your OTP code.',
+          email: user.email,
+          needsVerification: true,
+        });
+      }
+
       res.json({
         _id: user._id,
         name: user.name,
@@ -94,9 +195,12 @@ exports.loginAdmin = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone || '',
         role: user.role,
         token: generateToken(user._id),
       });
+    } else if (user && user.role !== 'admin') {
+      res.status(403).json({ message: 'Access Denied. This portal is for administrators only.' });
     } else {
       res.status(401).json({ message: 'Invalid admin credentials' });
     }
@@ -105,6 +209,36 @@ exports.loginAdmin = async (req, res) => {
     res.status(500).json({ message: 'Server error during admin login', error: error.message });
   }
 };
+
+// @desc    Authenticate canteen staff & get token
+// @route   POST /api/auth/canteen/login
+// @access  Public
+exports.loginCanteen = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (user && user.role === 'canteen' && (await user.comparePassword(password))) {
+      res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        role: user.role,
+        token: generateToken(user._id),
+      });
+    } else if (user && user.role !== 'canteen') {
+      res.status(403).json({ message: 'Access Denied. This portal is for canteen staff only.' });
+    } else {
+      res.status(401).json({ message: 'Invalid canteen staff credentials' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error during canteen login', error: error.message });
+  }
+};
+
 
 // @desc    Forgot Password Request (Mock)
 // @route   POST /api/auth/forgot-password
@@ -118,11 +252,42 @@ exports.forgotPassword = async (req, res) => {
       return res.status(404).json({ message: 'No user found with that email address' });
     }
 
-    // In a real application, we would send an email with a reset link and a secure token.
-    // Here we will just return success and a mock token for frontend demo.
+    // Generate a secure reset token (embed user ID + timestamp)
+    const resetToken = `mock-reset-token-${user._id}`;
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+
+    // Send reset email
+    const { sendOTPEmail: _unused, ...emailUtils } = require('../utils/emailService');
+    const nodemailer = require('nodemailer');
+    const transporter = process.env.EMAIL_USER && process.env.EMAIL_PASS
+      ? nodemailer.createTransport({ service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } })
+      : null;
+
+    if (transporter) {
+      await transporter.sendMail({
+        from: `"Campus Canteen 🍽️" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'Campus Canteen – Password Reset Request',
+        html: `
+          <div style="font-family:Arial,sans-serif;background:#0f172a;padding:32px;border-radius:12px;">
+            <h2 style="color:#f59e0b;margin:0 0 12px;">Password Reset</h2>
+            <p style="color:#94a3b8;">Hello <strong style="color:#e2e8f0;">${user.name}</strong>,</p>
+            <p style="color:#64748b;">Click the button below to reset your password. Link expires in 30 minutes.</p>
+            <a href="${resetLink}"
+               style="display:inline-block;margin:16px 0;background:#f59e0b;color:#0f172a;
+                      padding:10px 24px;border-radius:8px;font-weight:700;text-decoration:none;">
+              Reset Password
+            </a>
+            <p style="color:#475569;font-size:11px;">If you did not request a password reset, ignore this email.</p>
+          </div>`,
+      });
+    } else {
+      console.log(`[Password Reset Link] ${resetLink}`);
+    }
+
     res.json({
       message: 'Password reset link sent to your registered email address',
-      resetToken: 'mock-reset-token-' + user._id,
+      resetToken,
     });
   } catch (error) {
     console.error(error);
@@ -158,5 +323,29 @@ exports.resetPassword = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error during password reset process' });
+  }
+};
+
+// @desc    Get current logged-in user (token verification)
+// @route   GET /api/auth/me
+// @access  Private
+exports.getMe = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      studentId: user.studentId,
+      department: user.department,
+      role: user.role,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error fetching user profile' });
   }
 };

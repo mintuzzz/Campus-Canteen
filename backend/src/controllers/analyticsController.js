@@ -1,23 +1,81 @@
 const Order = require('../models/Order');
 const Feedback = require('../models/Feedback');
 const FoodItem = require('../models/FoodItem');
+const User = require('../models/User');
+const AuditLog = require('../models/AuditLog');
 
-// @desc    Get dashboard charts and metrics
+// @desc    Get dashboard charts, metrics, and reputation logs
 // @route   GET /api/analytics/dashboard
 // @access  Private/Admin
 exports.getAnalyticsDashboard = async (req, res) => {
   try {
-    // 1. Core Metrics Calculations
     const totalOrders = await Order.countDocuments();
     const completedOrders = await Order.countDocuments({ status: 'Completed' });
-    const pendingOrders = await Order.countDocuments({ status: { $in: ['Pending', 'Accepted', 'Preparing', 'Ready'] } });
-    
+    const pendingOrders = await Order.countDocuments({ status: { $in: ['Pending', 'Accepted', 'Preparing', 'Ready', 'Paid'] } });
+
+    // Payment Counts
+    const successfulPaymentsCount = await Order.countDocuments({ paymentStatus: 'Paid' });
+    const failedPaymentsCount = await Order.countDocuments({ paymentStatus: 'Failed' });
+    const refundedPaymentsCount = await Order.countDocuments({ paymentStatus: 'Refunded' });
+
+    // Revenue Aggregates
     const revenueResult = await Order.aggregate([
       { $match: { paymentStatus: 'Paid' } },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
     const totalRevenue = revenueResult[0]?.total || 0;
 
+    // Today's, Weekly, and Monthly Revenue
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const startOfWeekly = new Date();
+    startOfWeekly.setDate(startOfWeekly.getDate() - 7);
+
+    const startOfMonthly = new Date();
+    startOfMonthly.setDate(startOfMonthly.getDate() - 30);
+
+    const todayRevRes = await Order.aggregate([
+      { $match: { paymentStatus: 'Paid', createdAt: { $gte: startOfToday } } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const todayRevenue = todayRevRes[0]?.total || 0;
+
+    const weeklyRevRes = await Order.aggregate([
+      { $match: { paymentStatus: 'Paid', createdAt: { $gte: startOfWeekly } } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const weeklyRevenue = weeklyRevRes[0]?.total || 0;
+
+    const monthlyRevRes = await Order.aggregate([
+      { $match: { paymentStatus: 'Paid', createdAt: { $gte: startOfMonthly } } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const monthlyRevenue = monthlyRevRes[0]?.total || 0;
+
+    // Food Waste & Lost Revenue Analytics
+    // Food Wasted: Sum total amount of cancelled/no-show orders (representing prep value wasted)
+    const foodWastedRes = await Order.aggregate([
+      { $match: { status: 'Cancelled', paymentStatus: 'Refunded' } }, // Orders paid but eventually cancelled (no-show/refunded)
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const foodWastedValue = foodWastedRes[0]?.total || 0;
+
+    // Revenue Lost: Sum of all Cancelled, Refunded, or Failed orders
+    const revenueLostRes = await Order.aggregate([
+      { $match: { $or: [{ status: 'Cancelled' }, { paymentStatus: 'Refunded' }, { paymentStatus: 'Failed' }] } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const revenueLost = revenueLostRes[0]?.total || 0;
+
+    // Refund Reports sum
+    const refundReportsRes = await Order.aggregate([
+      { $match: { paymentStatus: 'Refunded' } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const totalRefundedAmount = refundReportsRes[0]?.total || 0;
+
+    // Feedbacks compile
     const feedbacks = await Feedback.find();
     const totalFeedbackCount = feedbacks.length;
     
@@ -52,15 +110,13 @@ exports.getAnalyticsDashboard = async (req, res) => {
       ? Number(((complaintCount / totalFeedbackCount) * 100).toFixed(1))
       : 0;
 
-    // Food list rankings
+    // Food ratings
     const foodItemsOrdered = await FoodItem.find().sort({ rating: -1 });
     const foodsWithRatings = foodItemsOrdered.filter(f => f.reviews && f.reviews.length > 0);
     const mostLikedFood = foodsWithRatings[0]?.name || 'N/A';
     const leastLikedFood = foodsWithRatings.length > 0 ? foodsWithRatings[foodsWithRatings.length - 1]?.name : 'N/A';
 
-    // 2. Charts Aggregation
-    
-    // Orders & Revenue per day (Last 7 days)
+    // 7 days charts data
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -76,7 +132,6 @@ exports.getAnalyticsDashboard = async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
-    // Format ordersPerDay to fill empty dates
     const formattedOrdersPerDay = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -126,16 +181,26 @@ exports.getAnalyticsDashboard = async (req, res) => {
       quantity: item.quantity
     }));
 
-    // Least Liked Foods
-    const leastLikedFoods = foodsWithRatings
-      .slice(-5)
-      .reverse() // from lowest up
-      .map(item => ({
-        name: item.name,
-        rating: item.rating
-      }));
+    // Most Cancelled Items
+    const mostCancelledFoodsAgg = await Order.aggregate([
+      { $match: { status: 'Cancelled' } },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.name',
+          quantity: { $sum: '$items.quantity' }
+        }
+      },
+      { $sort: { quantity: -1 } },
+      { $limit: 5 }
+    ]);
 
-    // Sentiment Breakdown
+    const mostCancelledFoods = mostCancelledFoodsAgg.map(item => ({
+      name: item._id,
+      quantity: item.quantity
+    }));
+
+    // Sentiment breakdown
     const sentimentBreakdown = [
       { name: 'Positive', value: 0 },
       { name: 'Neutral', value: 0 },
@@ -148,27 +213,14 @@ exports.getAnalyticsDashboard = async (req, res) => {
       else if (f.sentiment === 'Negative') sentimentBreakdown[2].value++;
     });
 
-    // Peak Ordering Hours
-    const peakOrderingHoursAgg = await Order.aggregate([
-      {
-        $group: {
-          _id: { $hour: '$createdAt' },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
+    // Student Reputation lists
+    const noShowUsers = await User.find({ noShowCount: { $gt: 0 } })
+      .select('name email studentId noShowCount warningCount penaltyStatus')
+      .sort({ noShowCount: -1 })
+      .limit(10);
 
-    // Format all 24 hours or just standard breakfast/lunch/dinner peaks
-    const formattedPeakHours = Array.from({ length: 15 }, (_, i) => {
-      const hour = i + 7; // 7 AM to 9 PM
-      const match = peakOrderingHoursAgg.find(item => item._id === hour);
-      const label = hour >= 12 ? `${hour === 12 ? 12 : hour - 12} PM` : `${hour} AM`;
-      return {
-        hour: label,
-        count: match ? match.count : 0
-      };
-    });
+    const suspendedUsers = await User.find({ penaltyStatus: 'Suspended' })
+      .select('name email studentId warningCount suspensionUntil');
 
     res.json({
       metrics: {
@@ -176,6 +228,15 @@ exports.getAnalyticsDashboard = async (req, res) => {
         completedOrders,
         pendingOrders,
         totalRevenue,
+        todayRevenue,
+        weeklyRevenue,
+        monthlyRevenue,
+        successfulPaymentsCount,
+        failedPaymentsCount,
+        refundedPaymentsCount,
+        totalRefundedAmount,
+        foodWastedValue,
+        revenueLost,
         totalFeedback: totalFeedbackCount,
         averageRating: avgRating,
         tasteAvg,
@@ -191,13 +252,33 @@ exports.getAnalyticsDashboard = async (req, res) => {
         ordersPerDay: formattedOrdersPerDay,
         ratingsDistribution,
         mostOrderedFoods,
-        leastLikedFoods,
+        mostCancelledFoods,
         sentimentBreakdown,
-        peakOrderingHours: formattedPeakHours,
+      },
+      reputation: {
+        noShowUsers,
+        suspendedUsers,
       }
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error compiling analytics dashboard' });
+  }
+};
+
+// @desc    Get system audit logs
+// @route   GET /api/analytics/audit-logs
+// @access  Private/Admin
+exports.getAuditLogs = async (req, res) => {
+  try {
+    const logs = await AuditLog.find()
+      .populate('orderId', 'tokenNumber')
+      .sort({ timestamp: -1 })
+      .limit(100);
+
+    res.json(logs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error retrieving system audit logs' });
   }
 };

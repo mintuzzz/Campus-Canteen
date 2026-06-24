@@ -13,12 +13,16 @@ const socketio = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Serve uploads statically
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // CORS configuration
 const corsOptions = {
@@ -72,6 +76,8 @@ app.use('/api/feedback', require('./routes/feedbackRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/summary', require('./routes/summaryRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/settings', require('./routes/settingsRoutes'));
+app.use('/api/payment', require('./routes/phonePeRoutes'));
 
 // Basic Health Check Route
 app.get('/health', (req, res) => {
