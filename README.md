@@ -4,7 +4,11 @@
 A production-ready full-stack web application designed for college mess halls and canteens. It allows students to pre-order food, track preparations in real-time, pay online (mocked), and provide granular star reviews. Canteen admins can manage live incoming orders (via WebSockets), customize daily menus, audit payment logs, view advanced analytics, and check automatically compiled daily AI summaries.
 
 ---
-
+## Team Members
+  Aleena X
+  Gadhya S S
+  Soorya Gayathry B R
+  
 ## Technical Stack
 
 * **Frontend:** React, TypeScript, Vite, Tailwind CSS, React Router, React Query, React Hook Form, Recharts, Socket.io-client.
