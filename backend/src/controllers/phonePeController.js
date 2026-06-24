@@ -3,11 +3,16 @@ const crypto = require('crypto');
 const Order = require('../models/Order');
 const Notification = require('../models/Notification');
 
-// ── Initialize Razorpay ───────────────────────────────────────────────────
-const getRazorpay = () => new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+// ── Initialize Razorpay (lazy — only if keys are set) ────────────────────
+const getRazorpay = () => {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    return null;
+  }
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+};
 
 // Helper to emit socket events
 const emitSocketEvent = (req, room, eventName, data) => {
@@ -37,6 +42,10 @@ exports.initiatePayment = async (req, res) => {
     const amountInPaise = Math.round(order.totalAmount * 1.05 * 100);
 
     const rzp = getRazorpay();
+    if (!rzp) {
+      return res.status(503).json({ message: 'Online payment is not configured. Please use Cash on Pickup.' });
+    }
+
     const rzpOrder = await rzp.orders.create({
       amount: amountInPaise,
       currency: 'INR',
